@@ -312,9 +312,7 @@ else:
 
 # Footer
 st.markdown("---")
-st.markdown("Made from Bryan Sean ❤️")
-
-st.title("Aplikasi Katalog Records Sederhana")
+st.markdown("Made from Bryan Sean")
 
 # Anda bisa menambahkan elemen Streamlit lainnya di sini
 # Contoh: st.write("Halo, dunia!")
