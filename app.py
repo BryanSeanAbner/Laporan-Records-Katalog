@@ -10,7 +10,10 @@ from script import (
     get_all_main_catalogs,
     get_total_assets_from_metadata,
     get_catalog_total_assets,
-    format_date_for_catalog_name_filter
+    format_date_for_catalog_name_filter,
+    get_metadata_value,
+    NAMA_KUNCI_METADATA_TANGGAL,
+    FORMAT_STRING_TANGGAL_METADATA
 )
 
 # Konfigurasi halaman Streamlit
@@ -261,25 +264,35 @@ else:
                                 filter_matched = True
 
                             # Kondisi 2: Hitung aset di dalam katalog yang metadata tanggalnya cocok dengan RENTANG tanggal
-                            # Kita panggil fungsi ini terlepas dari kondisi nama, untuk mendapatkan hitungan berdasarkan metadata.
-                            # Perhatikan: get_total_assets_from_metadata di script.py perlu diubah untuk menerima end_date
                             count_metadata_match = get_total_assets_from_metadata(catalog_id, start_date, end_date, headers, cookies)
 
                             # Logika Final: Jika nama katalog cocok, gunakan count dari nama. Jika nama katalog TIDAK cocok TAPI ada aset dengan metadata tanggal yang cocok dalam rentang, gunakan count dari metadata.
                             if filter_matched:
                                 # Count sudah diambil dari get_catalog_total_assets
                                 pass # count_for_this_catalog sudah disetel
-                            elif count_metadata_match > 0:
+                            elif isinstance(count_metadata_match, (int, float)) and count_metadata_match > 0:
                                 # Nama tidak cocok, tapi ada aset dengan metadata tanggal yang cocok dalam rentang
                                 count_for_this_catalog = count_metadata_match
                                 filter_matched = True # Tandai matched untuk dimasukkan ke laporan
 
                             # Jika filter_matched tetap False, maka katalog ini tidak masuk laporan
                             if filter_matched:
+                                # Coba ambil tanggal dari metadata untuk ditampilkan
+                                date_value_raw = get_metadata_value(catalog, NAMA_KUNCI_METADATA_TANGGAL)
+                                display_date_str = "Tanggal Tidak Tersedia"
+                                if date_value_raw:
+                                    try:
+                                        # Parse string tanggal dari metadata asset (atau katalog)
+                                        asset_date_obj = datetime.datetime.strptime(str(date_value_raw), FORMAT_STRING_TANGGAL_METADATA).date()
+                                        display_date_str = asset_date_obj.strftime('%d %B %Y')
+                                    except (ValueError, TypeError):
+                                        display_date_str = "Tanggal Metadata Tidak Valid"
+
                                 report_data.append({
                                     "ID Katalog": catalog_id,
                                     "Nama Katalog": catalog_name,
-                                    f"Total Records ({start_date.strftime('%d %B %Y')} - {end_date.strftime('%d %B %Y')})": count_for_this_catalog # Nama kolom mencakup rentang tanggal
+                                    "Tanggal" : display_date_str, # Gunakan tanggal spesifik dari metadata
+                                    f"Total Records ({start_date.strftime('%d %B %Y')} - {end_date.strftime('%d %B %Y')})": count_for_this_catalog # Nama kolom tetap rentang filter
                                 })
 
                         # Tampilkan hasil
