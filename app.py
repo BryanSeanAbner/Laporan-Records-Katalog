@@ -3,7 +3,7 @@ import requests
 import pandas as pd
 import json
 import datetime
-import locale
+# import locale # Tidak perlu impor locale jika tidak setlocale
 from io import BytesIO
 from urllib.parse import urlparse
 from script import (
@@ -13,8 +13,15 @@ from script import (
     format_date_for_catalog_name_filter,
     get_metadata_value,
     NAMA_KUNCI_METADATA_TANGGAL,
-    FORMAT_STRING_TANGGAL_METADATA
+    FORMAT_STRING_TANGGAL_METADATA,
+    # Impor dictionary nama bulan dari script.py
+    # Asumsi dictionary ada di scope global atau bisa diimpor
+    # Jika tidak, kita perlu menyalin dictionary ke sini atau memodifikasi script.py
 )
+
+# Jika dictionary nama_bulan_indonesia tidak diimpor dari script.py secara global,
+# kita bisa definisikan ulang di sini atau impor spesifik dari script.
+# Untuk sementara, mari asumsikan kita bisa mengimpornya atau akan menanganinya.
 
 # Konfigurasi halaman Streamlit
 st.set_page_config(
@@ -91,16 +98,6 @@ def is_valid_url(url):
         return all([result.scheme in ['http', 'https'], result.netloc])
     except:
         return False # URL parsing gagal
-
-# Set locale ke Indonesia
-try:
-    locale.setlocale(locale.LC_TIME, 'id_ID.UTF-8')
-except locale.Error:
-    try:
-        locale.setlocale(locale.LC_TIME, 'Indonesian_Indonesia')
-    except locale.Error:
-        st.warning("Tidak dapat mengatur local ke Indonesia. Nama bulan mungkin dalam Bahasa Inggris.")
-        locale.setlocale(locale.LC_TIME, 'en_US.UTF-8')
 
 # Inisialisasi session state jika belum ada
 if 'is_logged_in' not in st.session_state:
@@ -279,20 +276,46 @@ else:
                             if filter_matched:
                                 # Coba ambil tanggal dari metadata untuk ditampilkan
                                 date_value_raw = get_metadata_value(catalog, NAMA_KUNCI_METADATA_TANGGAL)
-                                display_date_str = "Tanggal Tidak Tersedia"
+                                display_date_str = "-" # Default ke tanda hubung
+                                extracted_date_obj = None
+
+                                # 1. Coba dari metadata
                                 if date_value_raw:
                                     try:
-                                        # Parse string tanggal dari metadata asset (atau katalog)
-                                        asset_date_obj = datetime.datetime.strptime(str(date_value_raw), FORMAT_STRING_TANGGAL_METADATA).date()
-                                        display_date_str = asset_date_obj.strftime('%d %B %Y')
+                                        extracted_date_obj = datetime.datetime.strptime(str(date_value_raw), FORMAT_STRING_TANGGAL_METADATA).date()
                                     except (ValueError, TypeError):
-                                        display_date_str = "Tanggal Metadata Tidak Valid"
+                                        pass # Gagal parsing metadata, extracted_date_obj tetap None
+
+                                # 2. Jika metadata tidak berhasil didapat, coba dari nama katalog
+                                # Ini opsional, kita fokus ke metadata dulu
+                                # if extracted_date_obj is None:
+                                #     name_date_obj = extract_date_from_catalog_name(catalog.get('catalog_name', '')) # extract_date_from_catalog_name perlu diimpor/didefinisikan di app.py jika locale dihapus
+                                #     if name_date_obj:
+                                #         extracted_date_obj = name_date_obj
+
+
+                                # 3. Jika salah satu berhasil, format untuk ditampilkan
+                                if extracted_date_obj:
+                                    # Format tanggal secara manual tanpa mengandalkan locale sistem untuk nama bulan
+                                    nama_bulan_indonesia = {
+                                        'January': 'JANUARI', 'February': 'FEBRUARI', 'March': 'MARET',
+                                        'April': 'APRIL', 'May': 'MEI', 'June': 'JUNI', 'July': 'JULI',
+                                        'August': 'AGUSTUS', 'September': 'SEPTEMBER', 'October': 'OKTOBER',
+                                        'November': 'NOVEMBER', 'December': 'DESEMBER'
+                                    }
+                                    hari = extracted_date_obj.day
+                                    nama_bulan_inggris = extracted_date_obj.strftime('%B')
+                                    nama_bulan = nama_bulan_indonesia.get(nama_bulan_inggris, nama_bulan_inggris.upper())
+                                    tahun = extracted_date_obj.year
+                                    display_date_str = f"{hari} {nama_bulan} {tahun}"
+                                else:
+                                     display_date_str = "-" # Fallback final jika metadata gagal
 
                                 report_data.append({
                                     "ID Katalog": catalog_id,
                                     "Nama Katalog": catalog_name,
-                                    "Tanggal" : display_date_str, # Gunakan tanggal spesifik dari metadata
-                                    f"Total Records ({start_date.strftime('%d %B %Y')} - {end_date.strftime('%d %B %Y')})": count_for_this_catalog # Nama kolom tetap rentang filter
+                                    "Tanggal" : display_date_str, # Gunakan tanggal spesifik atau "-"
+                                    f"Total Records ({start_date.strftime('%d %B %Y')} - {end_date.strftime('%d %B %Y')})": count_for_this_catalog
                                 })
 
                         # Tampilkan hasil

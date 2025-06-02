@@ -2,24 +2,7 @@ import requests
 import pandas as pd
 import json
 import datetime
-import locale
-# import locale # Untuk nama bulan dalam Bahasa Indonesia
-
-# Set locale ke Indonesia untuk mendapatkan nama bulan yang benar
-try:
-    locale.setlocale(locale.LC_TIME, 'id_ID.UTF-8')
-except locale.Error:
-    try:
-        locale.setlocale(locale.LC_TIME, 'Indonesian_Indonesia')
-    except locale.Error:
-        # Peringatan: Tidak dapat mengatur locale ke Indonesia.
-        # Nama bulan mungkin dalam Bahasa Inggris.
-        # Default ke English jika locale Indonesia tidak tersedia
-        try:
-            locale.setlocale(locale.LC_TIME, 'en_US.UTF-8')
-        except locale.Error:
-             print("Peringatan: Tidak dapat mengatur locale Inggris juga. Parsing tanggal mungkin akan bermasalah.")
-
+# import locale # Tidak perlu impor locale jika tidak setlocale
 
 # --- Konfigurasi yang Perlu Anda Ganti ---
 BASE_URL = "https://192.168.16.111/service"
