@@ -2,19 +2,23 @@ import requests
 import pandas as pd
 import json
 import datetime
-import locale # Untuk nama bulan dalam Bahasa Indonesia
+import locale
+# import locale # Untuk nama bulan dalam Bahasa Indonesia
 
 # Set locale ke Indonesia untuk mendapatkan nama bulan yang benar
-# Ini mungkin perlu disesuaikan tergantung konfigurasi sistem operasi Anda
 try:
     locale.setlocale(locale.LC_TIME, 'id_ID.UTF-8')
 except locale.Error:
     try:
         locale.setlocale(locale.LC_TIME, 'Indonesian_Indonesia')
     except locale.Error:
-        print("Peringatan: Tidak dapat mengatur locale ke Indonesia. Nama bulan mungkin dalam Bahasa Inggris.")
+        # Peringatan: Tidak dapat mengatur locale ke Indonesia.
+        # Nama bulan mungkin dalam Bahasa Inggris.
         # Default ke English jika locale Indonesia tidak tersedia
-        locale.setlocale(locale.LC_TIME, 'en_US.UTF-8')
+        try:
+            locale.setlocale(locale.LC_TIME, 'en_US.UTF-8')
+        except locale.Error:
+             print("Peringatan: Tidak dapat mengatur locale Inggris juga. Parsing tanggal mungkin akan bermasalah.")
 
 
 # --- Konfigurasi yang Perlu Anda Ganti ---
@@ -22,7 +26,7 @@ BASE_URL = "https://192.168.16.111/service"
 
 # Ganti string ini dengan nilai SESSION_ID yang valid dari cookie di Developer Tools Anda
 # CARA MENDAPATKANNYA: Buka Developer Tools (F12) di browser -> Tab Network -> Klik permintaan API -> Tab Headers -> Request Headers -> Cari Cookie -> Salin nilai setelah session_id=
-SESSION_ID = "7bf0b511-b409-4cd3-af64-8d259fa71c1e" # <--- Session ID Dapat Berubah !
+SESSION_ID = "7bf0b511-b409-4cd3-af64-8d259fa71c1e"  # <--- Session ID Dapat Berubah !
 
 # Ganti string ini dengan URL endpoint yang memberikan daftar SEMUA katalog di halaman utama
 # CARA MENDAPATKANNYA: Buka halaman utama "Catalogs" -> Developer Tools (F12) -> Tab Network -> Refresh halaman (F5) -> Cari permintaan yang responsnya berisi daftar semua katalog -> Salin Request URL
@@ -38,10 +42,10 @@ MAIN_CATALOG_ID_FOR_REFERER = "650ad45f9f8784ac438fa212" # <--- PERIKSA/GANTI IN
 
 OUTPUT_EXCEL_FILE = "Laporan_Records_Katalog_Harian.xlsx"
 # --- ANDA PERLU MENENTUKAN INI ---
-# Nama KUNCI JSON untuk field metadata TANGGAL di dalam setiap objek asset
-# CARA MENDAPATKANNYA: Buka Developer Tools -> Tab Network -> Klik request yang ambil asset list (URL service/assets?catalog_id=...)
-# -> Tab Response -> Periksa struktur objek di dalam array "assets" -> Cari kunci yang berisi tanggal
-NAMA_KUNCI_METADATA_TANGGAL = ["asset_properties", "DATE"] # <--- SESUAIKAN INI! Ini contoh jika tanggal ada di asset_properties -> DATE
+# Nama KUNCI JSON untuk field metadata TANGGAL yang ingin ditampilkan di laporan.
+# Berdasarkan JSON sample, "asset_created_datetime" adalah tanggal pembuatan untuk objek type "catalog".
+# Gunakan path ini untuk mengambil nilai dari objek katalog lengkap yang dikembalikan oleh get_all_main_catalogs.
+NAMA_KUNCI_METADATA_TANGGAL = ["asset_created_datetime"]
 
 
 # --- Konfigurasi Filter Tanggal ---
@@ -51,9 +55,8 @@ NAMA_KUNCI_METADATA_TANGGAL = ["asset_properties", "DATE"] # <--- SESUAIKAN INI!
 TANGGAL_FILTER_DATE_OBJ = datetime.date.today() # <--- Gunakan format ini jika ingin menspesifikasikan tanggal tertentu datetime.date(YYYY, MM, DD)
 # Atau gunakan datetime.date.today() untuk tanggal hari ini
 
-NAMA_KUNCI_METADATA_TANGGAL = ["created_datetime"]
 # Format string tanggal yang ada di metadata asset.
-# Anda perlu memeriksa format string tanggal di respons API (nilai dari NAMA_KUNCI_METADATA_TANGGAL)
+# Berdasarkan JSON sample, formatnya adalah "YYYY-MM-DDTHH:MM:SS"
 FORMAT_STRING_TANGGAL_METADATA = "%Y-%m-%dT%H:%M:%S" # <--- SESUAIKAN INI!
 
 
@@ -61,8 +64,25 @@ FORMAT_STRING_TANGGAL_METADATA = "%Y-%m-%dT%H:%M:%S" # <--- SESUAIKAN INI!
 # Sesuaikan agar sesuai persis dengan format tanggal di nama katalog Anda (misal "26 MEI 2025")
 # Gunakan strftime untuk format yang fleksibel
 def format_date_for_catalog_name_filter(date_obj):
-    # Dapatkan nama bulan dalam bahasa Indonesia
-    nama_bulan = date_obj.strftime('%B').upper() # Nama bulan lengkap, kapital
+    # Pemetaan nama bulan dari Bahasa Inggris ke Bahasa Indonesia
+    nama_bulan_indonesia = {
+        'January': 'JANUARI',
+        'February': 'FEBRUARI',
+        'March': 'MARET',
+        'April': 'APRIL',
+        'May': 'MEI',
+        'June': 'JUNI',
+        'July': 'JULI',
+        'August': 'AGUSTUS',
+        'September': 'SEPTEMBER',
+        'October': 'OKTOBER',
+        'November': 'NOVEMBER',
+        'December': 'DESEMBER'
+    }
+
+    # Dapatkan nama bulan dalam bahasa Inggris, lalu terjemahkan ke Bahasa Indonesia
+    nama_bulan_inggris = date_obj.strftime('%B')
+    nama_bulan = nama_bulan_indonesia.get(nama_bulan_inggris, nama_bulan_inggris.upper()) # Default ke kapital jika tidak ada di map
 
     # Dapatkan hari tanpa leading zero
     hari = date_obj.day
@@ -81,39 +101,31 @@ requests.packages.urllib3.disable_warnings()
 
 
 def get_all_main_catalogs(url_endpoint, headers, cookies): # Tambahkan headers, cookies sebagai parameter
-    """Mengambil daftar semua katalog utama dari endpoint yang ditentukan."""
+    """Mengambil daftar semua katalog utama dari endpoint yang ditentukan.
+    Mengembalikan daftar objek katalog lengkap jika memenuhi kriteria dasar (ID, nama, tipe 'catalog').
+    """ # Perbarui docstring
     print(f"Mengambil daftar semua katalog dari: {url_endpoint}")
     try:
-        # Menggunakan verify=False karena masalah sertifikat SSL yang umum di lingkungan internal
-        response = requests.get(url_endpoint, headers=headers, cookies=cookies, verify=False) # Gunakan parameter headers, cookies
-        response.raise_for_status() # Akan raise HTTPError untuk status kode error (4xx atau 5xx)
+        response = requests.get(url_endpoint, headers=headers, cookies=cookies, verify=False)
+        response.raise_for_status()
         data = response.json()
 
-        # --- ANDA SUDAH MENYESUAIKAN BAGIAN INI SEBELUMNYA ---
-        # Sesuaikan cara mengekstrak daftar katalog dari 'data' respons endpoint daftar utama
-        # Berdasarkan output sebelumnya, daftarnya ada di bawah kunci "assets"
         catalogs_list_raw = []
         if isinstance(data, dict) and "assets" in data and isinstance(data.get("assets"), list):
             catalogs_list_raw = data.get("assets", [])
         elif isinstance(data, list):
             catalogs_list_raw = data
-        # Tambahkan logika ekstraksi lain jika diperlukan
 
-
-        # Filter items untuk memastikan hanya objek katalog yang valid
         filtered_catalogs = []
         for item in catalogs_list_raw:
              if isinstance(item, dict):
                   item_id = item.get("_id")
-                  # Coba 'catalog_name' atau 'file_name' atau kunci lain yang menyimpan nama katalog
                   item_name = item.get("catalog_name") or item.get("file_name")
                   item_type = item.get("asset_type") # Cek tipe aset
 
+                  # Jika memenuhi kriteria dasar, tambahkan objek lengkap ke daftar
                   if item_id and item_name and item_type == "catalog":
-                       filtered_catalogs.append({
-                            "_id": item_id,
-                            "catalog_name": item_name
-                       })
+                       filtered_catalogs.append(item) # <<<--- Mengembalikan objek item lengkap
                   # else: Lewati item yang bukan katalog atau tidak lengkap
 
 
@@ -238,38 +250,32 @@ def get_total_assets_from_metadata(catalog_id, start_date_obj, end_date_obj, hea
     # print(f"  - Total aset yang cocok dengan rentang tanggal metadata {start_date_obj} - {end_date_obj}: {count}") # Perbarui pesan print
     return count
 
-def get_catalog_total_assets(catalog_id, headers, cookies): # Tambahkan headers, cookies sebagai parameter
+def get_catalog_total_assets(catalog_id, headers, cookies):
     """Mengambil nilai total_assets langsung dari metadata katalog (endpoint /assets)."""
-    # Menggunakan endpoint yang mengandung total_assets di respons
     url = f"{BASE_URL}/assets"
     params = {
         "catalog_id": catalog_id,
-        # Parameter lain yang mungkin diperlukan server untuk mengembalikan metadata total
         "page": 1,
         "view_type": "list",
         "browse": "true"
-        # Tidak perlu sort_by/sort_order/size jika hanya perlu metadata total
     }
-    # print(f"  - Mengambil total_assets untuk katalog ID {catalog_id} (dari metadata)...")
     try:
-        response = requests.get(url, headers=headers, cookies=cookies, params=params, verify=False) # Gunakan parameter headers, cookies
+        response = requests.get(url, headers=headers, cookies=cookies, params=params, verify=False)
         response.raise_for_status()
         data = response.json()
 
         # Mencari 'total_assets' di struktur respons
         total_assets = data.get("total_assets")
 
-        if total_assets is not None:
-            # print(f"  - Total aset dari metadata: {total_assets}")
-            return total_assets
+        if total_assets is not None and isinstance(total_assets, (int, float)):
+            return int(total_assets)  # Pastikan mengembalikan integer
         else:
-             print(f"  - Peringatan: Kunci 'total_assets' tidak ditemukan dalam respons metadata untuk katalog ID {catalog_id}.")
-             # print("Respons metadata (sebagian):", json.dumps(data, indent=2)[:500] + "...")
-             return "Tidak diketahui"
+            print(f"  - Peringatan: Kunci 'total_assets' tidak ditemukan atau bukan angka dalam respons metadata untuk katalog ID {catalog_id}.")
+            return 0  # Kembalikan 0 jika tidak ada data atau error
 
     except requests.exceptions.RequestException as e:
         print(f"Error saat mengambil total_assets metadata untuk katalog ID {catalog_id}: {e}")
-        return "Error API Metadata"
+        return 0  # Kembalikan 0 jika terjadi error
     except json.JSONDecodeError:
         print(f"Error: Respons API metadata untuk katalog ID {catalog_id} bukan JSON yang valid.")
-        return "Error Data Metadata"
+        return 0  # Kembalikan 0 jika terjadi error
