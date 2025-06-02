@@ -36,14 +36,12 @@ pip install -r requirements.txt
 ## Penggunaan
 
 1. Sesuaikan konfigurasi di `script.py`:
-   - `SESSION_ID`: ID sesi dari cookie browser
-   - `BASE_URL`: URL dasar API
-   - `URL_ENDPOINT_DAFTAR_KATALOG_UTAMA`: Endpoint untuk daftar katalog
-   - Konfigurasi lainnya sesuai kebutuhan
+   - `BASE_URL`: Memiliki akses API endpointnya
+   - Harus masuk ke dalam jaringan lokal perusahaan
 
 2. Jalankan script:
 ```bash
-python script.py
+streamlit run app.py
 ```
 
 ## Catatan Penting
@@ -51,7 +49,3 @@ python script.py
 - Pastikan Anda memiliki akses ke API internal
 - Session ID perlu diperbarui secara berkala
 - Gunakan dengan bijak sesuai kebijakan penggunaan API
-
-## Lisensi
-
-[Masukkan informasi lisensi di sini] 
