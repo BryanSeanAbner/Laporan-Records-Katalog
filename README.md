@@ -70,10 +70,6 @@ laporan-katalog/
 4. Push ke branch (`git push origin fitur-baru`)
 5. Buat Pull Request
 
-## Lisensi
-
-Proyek ini dilisensikan di bawah Lisensi MIT - lihat file LICENSE untuk detail.
-
-## Kontak
+## Made by
 
 Bryan Sean Abner - Anak Magang Nusantara TV 2025
