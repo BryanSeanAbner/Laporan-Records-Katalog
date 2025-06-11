@@ -3,18 +3,31 @@ import pandas as pd
 import json
 import datetime
 # import locale # Tidak perlu impor locale jika tidak setlocale
+from urllib.parse import urlparse, parse_qs
 
 # --- Konfigurasi yang Perlu Anda Ganti ---
-BASE_URL = "https://192.168.16.111/service"
+BASE_URL = "https://192.168.16.111/service" # Ini sekarang dideteksi otomatis di app.py
 
 # Ganti string ini dengan nilai SESSION_ID yang valid dari cookie di Developer Tools Anda
 # CARA MENDAPATKANNYA: Buka Developer Tools (F12) di browser -> Tab Network -> Klik permintaan API -> Tab Headers -> Request Headers -> Cari Cookie -> Salin nilai setelah session_id=
 SESSION_ID = "7bf0b511-b409-4cd3-af64-8d259fa71c1e"  # <--- Session ID Dapat Berubah !
 
-# Ganti string ini dengan URL endpoint yang memberikan daftar SEMUA katalog di halaman utama
-# CARA MENDAPATKANNYA: Buka halaman utama "Catalogs" -> Developer Tools (F12) -> Tab Network -> Refresh halaman (F5) -> Cari permintaan yang responsnya berisi daftar semua katalog -> Salin Request URL
-# URL ini mungkin terlihat seperti: "https://192.168.16.111/service/catalogs" atau "https://192.168.16.111/dcat/catalogs"
-URL_ENDPOINT_DAFTAR_KATALOG_UTAMA = "https://192.168.16.111/service/assets?page=1&view_type=list&sort_by=added_datetime&sort_order=-1&browse=true&catalog_id=650ad45f9f8784ac438fa212" # <--- GANTI INI!
+# Path endpoint untuk mendapatkan daftar SEMUA katalog di halaman utama (BUKAN URL LENGKAP DENGAN PAGE)
+# URL ini mungkin terlihat seperti: "/service/catalogs" atau "/dcat/catalogs"
+# Berdasarkan URL sebelumnya "https://192.168.16.111/service/assets?page=1...", path-nya adalah "/assets"
+CATALOG_LIST_ENDPOINT_PATH = "/assets" # <--- GANTI INI DENGAN PATH YANG BENAR!
+
+
+# Parameter query default untuk request katalog (misal: view_type, sort_by, sort_order, browse, catalog_id)
+# Ambil dari URL_ENDPOINT_DAFTAR_KATALOG_UTAMA sebelumnya, tapi buang parameter 'page'
+DEFAULT_CATALOG_QUERY_PARAMS = {
+    "view_type": "list", # Penting untuk mendapatkan daftar aset
+    "sort_by": "added_datetime", # Opsional, bisa disesuaikan
+    "sort_order": -1, # Opsional
+    "browse": "true", # Opsional
+    "catalog_id": "650ad45f9f8784ac438fa212", # GANTI DENGAN ID KATALOG UTAMA ANDA
+    "size": 50 # Ukuran halaman, sesuaikan jika API mendukung, 50 adalah default di gambar
+}
 
 
 # ID katalog utama (root catalog) - Mungkin diperlukan untuk header Referer
@@ -35,7 +48,7 @@ NAMA_KUNCI_METADATA_TANGGAL = ["asset_created_datetime"]
 # Set tanggal filter (dalam objek date) untuk membandingkan metadata
 
 # Contoh: untuk tanggal HARI INI
-TANGGAL_FILTER_DATE_OBJ = datetime.date.today() # <--- Gunakan format ini jika ingin menspesifikasikan tanggal tertentu datetime.date(YYYY, MM, DD)
+TANGGAL_FILTER_OBJ = datetime.date.today() # <--- Gunakan format ini jika ingin menspesifikasikan tanggal tertentu datetime.date(YYYY, MM, DD)
 # Atau gunakan datetime.date.today() untuk tanggal hari ini
 
 # Format string tanggal yang ada di metadata asset.
@@ -74,7 +87,7 @@ def format_date_for_catalog_name_filter(date_obj):
     tahun = date_obj.year
 
     # Sesuaikan format string ini
-    return f"{hari} {nama_bulan} {tahun}" # Output contoh: "26 MEI 2025"
+    return f"{hari} {nama_bulan} {tahun}"
 
 
 # ------------------------------------------
@@ -83,47 +96,69 @@ def format_date_for_catalog_name_filter(date_obj):
 requests.packages.urllib3.disable_warnings()
 
 
-def get_all_main_catalogs(url_endpoint, headers, cookies): # Tambahkan headers, cookies sebagai parameter
-    """Mengambil daftar semua katalog utama dari endpoint yang ditentukan.
+def get_all_main_catalogs(base_url, endpoint_path, query_params, headers, cookies): # Ubah parameter
+    """Mengambil daftar semua katalog utama dari endpoint yang ditentukan, mendukung pagination.
     Mengembalikan daftar objek katalog lengkap jika memenuhi kriteria dasar (ID, nama, tipe 'catalog').
     """ # Perbarui docstring
-    print(f"Mengambil daftar semua katalog dari: {url_endpoint}")
-    try:
-        response = requests.get(url_endpoint, headers=headers, cookies=cookies, verify=False)
-        response.raise_for_status()
-        data = response.json()
 
-        catalogs_list_raw = []
-        if isinstance(data, dict) and "assets" in data and isinstance(data.get("assets"), list):
-            catalogs_list_raw = data.get("assets", [])
-        elif isinstance(data, list):
-            catalogs_list_raw = data
+    all_catalogs = []
+    current_page = 1
+    total_pages = 1 # Mulai dengan 1, akan diupdate setelah request pertama
 
-        filtered_catalogs = []
-        for item in catalogs_list_raw:
-             if isinstance(item, dict):
-                  item_id = item.get("_id")
-                  item_name = item.get("catalog_name") or item.get("file_name")
-                  item_type = item.get("asset_type") # Cek tipe aset
+    print(f"Mengambil daftar semua katalog dari: {base_url}{endpoint_path}")
 
-                  # Jika memenuhi kriteria dasar, tambahkan objek lengkap ke daftar
-                  if item_id and item_name and item_type == "catalog":
-                       filtered_catalogs.append(item) # <<<--- Mengembalikan objek item lengkap
-                  # else: Lewati item yang bukan katalog atau tidak lengkap
+    while current_page <= total_pages:
+        url = f"{base_url}{endpoint_path}"
+        params = query_params.copy() # Salin parameter agar tidak mengubah yang asli
+        params["page"] = current_page # Set nomor halaman
 
+        print(f"  - Mengambil halaman {current_page}...")
 
-        if not filtered_catalogs:
-             print("Peringatan: Daftar katalog kosong atau tidak dapat diekstrak dari respons setelah filtering.")
-             # print("Respons mentah (sebagian):", json.dumps(data, indent=2)[:500] + "...")
+        try:
+            response = requests.get(url, headers=headers, cookies=cookies, params=params, verify=False)
+            response.raise_for_status()
+            data = response.json()
 
-        return filtered_catalogs
+            # Ekstrak daftar aset dari respons halaman saat ini.
+            # Berdasarkan respons sebelumnya, daftar aset ada di kunci "assets"
+            current_page_assets = data.get("assets", [])
 
-    except requests.exceptions.RequestException as e:
-        print(f"Error saat mengambil daftar semua katalog utama: {e}")
-        return None
-    except json.JSONDecodeError:
-        print("Error: Respons API daftar katalog bukan JSON yang valid.")
-        return None
+            if current_page == 1:
+                # Ambil total_pages dari respons pertama
+                total_pages = data.get("page_count", 1) # Default ke 1 jika tidak ada page_count
+                print(f"  - Total halaman ditemukan: {total_pages}")
+
+            # Filter katalog yang hanya bertipe 'catalog'
+            filtered_current_page_catalogs = []
+            for item in current_page_assets:
+                 if isinstance(item, dict):
+                      item_id = item.get("_id")
+                      item_name = item.get("catalog_name") or item.get("file_name")
+                      item_type = item.get("asset_type") # Cek tipe aset
+
+                      # Jika memenuhi kriteria dasar, tambahkan objek lengkap ke daftar
+                      if item_id and item_name and item_type == "catalog":
+                           filtered_current_page_catalogs.append(item) # <<<--- Mengembalikan objek item lengkap
+
+            all_catalogs.extend(filtered_current_page_catalogs)
+
+            # Lanjut ke halaman berikutnya
+            current_page += 1
+
+        except requests.exceptions.RequestException as e:
+            print(f"Error saat mengambil daftar katalog halaman {current_page}: {e}")
+            return None # Berhenti dan kembalikan None jika ada error
+        except json.JSONDecodeError:
+            print(f"Error: Respons API halaman {current_page} bukan JSON yang valid.")
+            return None # Berhenti dan kembalikan None jika respons bukan JSON
+        except Exception as e:
+            print(f"Terjadi kesalahan tak terduga saat mengambil halaman {current_page}: {e}")
+            return None # Berhenti dan kembalikan None untuk error lainnya
+
+    if not all_catalogs:
+         print("Peringatan: Daftar katalog kosong atau tidak dapat diekstrak dari respons setelah filtering.")
+
+    return all_catalogs
 
 
 def get_metadata_value(item, keys):
@@ -149,7 +184,7 @@ def get_total_assets_from_metadata(catalog_id, start_date_obj, end_date_obj, hea
         "sort_by": "added_datetime", # Opsional, bisa disesuaikan
         "sort_order": -1, # Opsional
         "browse": "true", # Opsional
-        "size": 100 # Ukuran halaman, sesuaikan jika API mendukung
+        "size": 50# Ukuran halaman, sesuaikan jika API mendukung
     }
     all_assets_in_catalog = []
     total_expected_assets = None # Total dari API metadata
@@ -163,7 +198,6 @@ def get_total_assets_from_metadata(catalog_id, start_date_obj, end_date_obj, hea
             response.raise_for_status()
             data = response.json()
 
-            # --- ANDA PERLU MENYESUAIKAN BAGIAN INI ---
             # Ekstrak daftar aset dari respons halaman saat ini.
             # Berdasarkan respons sebelumnya, daftar aset ada di kunci "assets"
             current_page_assets = data.get("assets", [])
@@ -248,17 +282,16 @@ def get_catalog_total_assets(catalog_id, headers, cookies):
         data = response.json()
 
         # Mencari 'total_assets' di struktur respons
-        total_assets = data.get("total_assets")
-
-        if total_assets is not None and isinstance(total_assets, (int, float)):
-            return int(total_assets)  # Pastikan mengembalikan integer
-        else:
-            print(f"  - Peringatan: Kunci 'total_assets' tidak ditemukan atau bukan angka dalam respons metadata untuk katalog ID {catalog_id}.")
-            return 0  # Kembalikan 0 jika tidak ada data atau error
+        return data.get("total_assets")
 
     except requests.exceptions.RequestException as e:
-        print(f"Error saat mengambil total_assets metadata untuk katalog ID {catalog_id}: {e}")
-        return 0  # Kembalikan 0 jika terjadi error
+        print(f"Error saat mengambil total_assets untuk katalog ID {catalog_id}: {e}")
+        return None
     except json.JSONDecodeError:
-        print(f"Error: Respons API metadata untuk katalog ID {catalog_id} bukan JSON yang valid.")
-        return 0  # Kembalikan 0 jika terjadi error
+        print("Error: Respons API total_assets bukan JSON yang valid.")
+        return None
+    except Exception as e:
+        print(f"Terjadi kesalahan tak terduga saat mengambil total_assets untuk katalog ID {catalog_id}: {e}")
+        return None
+
+# Anda bisa menambahkan fungsi lain di sini jika diperlukan
