@@ -1,31 +1,37 @@
-# Proyek Katalog Records
+# Laporan Records Katalog Nusantara TV
 
-Proyek ini adalah sebuah script Python untuk mengambil dan menganalisis data katalog dari API internal.
+Aplikasi web untuk mengelola dan melaporkan records katalog dari Nusantara TV.
 
 ## Fitur
 
-- Mengambil data katalog dari API internal
-- Filter data berdasarkan tanggal
-- Ekspor data ke format Excel
-- Mendukung pagination untuk data dalam jumlah besar
+- Login otomatis ke sistem Nusantara TV
+- Filter data berdasarkan rentang tanggal
+- Kategorisasi program otomatis
+- Export laporan ke Excel
+- Preview data per bulan
+- Tampilan yang responsif dan mudah digunakan
 
-## Persyaratan
+## Persyaratan Sistem
 
 - Python 3.8 atau lebih baru
-- Dependensi yang tercantum dalam `requirements.txt`
+- Koneksi ke jaringan lokal Nusantara TV
+- Akses ke API Nusantara TV
 
 ## Instalasi
 
 1. Clone repository ini:
 ```bash
-git clone [URL_REPOSITORY]
+git clone https://github.com/username/laporan-katalog.git
+cd laporan-katalog
 ```
 
-2. Buat virtual environment (opsional tapi direkomendasikan):
+2. Buat virtual environment dan aktifkan:
 ```bash
 python -m venv venv
-source venv/bin/activate  # Linux/Mac
-venv\Scripts\activate     # Windows
+# Windows
+venv\Scripts\activate
+# Linux/Mac
+source venv/bin/activate
 ```
 
 3. Install dependensi:
@@ -35,17 +41,39 @@ pip install -r requirements.txt
 
 ## Penggunaan
 
-1. Sesuaikan konfigurasi di `script.py`:
-   - `BASE_URL`: Memiliki akses API endpointnya
-   - Harus masuk ke dalam jaringan lokal perusahaan
-
-2. Jalankan script:
+1. Pastikan terhubung ke jaringan lokal Nusantara TV
+2. Jalankan aplikasi:
 ```bash
-streamlit run app.py
+streamlit run ui.py
+```
+3. Buka browser dan akses `http://localhost:8501`
+4. Login menggunakan kredensial Nusantara TV
+5. Pilih rentang tanggal untuk laporan
+6. Klik "Generate Laporan" untuk memproses data
+7. Download laporan Excel atau lihat preview per bulan
+
+## Struktur Proyek
+
+```
+laporan-katalog/
+├── ui.py              # File utama aplikasi Streamlit
+├── script.py          # Modul utilitas dan fungsi helper
+├── requirements.txt   # Daftar dependensi
+└── README.md         # Dokumentasi proyek
 ```
 
-## Catatan Penting
+## Kontribusi
 
-- Pastikan Anda memiliki akses ke API internal
-- Session ID perlu diperbarui secara berkala
-- Gunakan dengan bijak sesuai kebijakan penggunaan API
+1. Fork repository
+2. Buat branch fitur (`git checkout -b fitur-baru`)
+3. Commit perubahan (`git commit -m 'Menambahkan fitur baru'`)
+4. Push ke branch (`git push origin fitur-baru`)
+5. Buat Pull Request
+
+## Lisensi
+
+Proyek ini dilisensikan di bawah Lisensi MIT - lihat file LICENSE untuk detail.
+
+## Kontak
+
+Bryan Sean Abner - Anak Magang Nusantara TV 2025

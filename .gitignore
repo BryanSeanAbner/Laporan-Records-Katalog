@@ -4,7 +4,6 @@ __pycache__/
 *$py.class
 *.so
 .Python
-env/
 build/
 develop-eggs/
 dist/
@@ -16,12 +15,14 @@ lib64/
 parts/
 sdist/
 var/
+wheels/
 *.egg-info/
 .installed.cfg
 *.egg
 
 # Virtual Environment
 venv/
+env/
 ENV/
 
 # IDE
@@ -30,9 +31,13 @@ ENV/
 *.swp
 *.swo
 
-# Sistem Operasi
+# OS
 .DS_Store
 Thumbs.db
+
+# Project specific
+*.log
+.env
 
 # File Output
 *.xlsx
