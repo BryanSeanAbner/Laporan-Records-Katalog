@@ -294,4 +294,56 @@ def get_catalog_total_assets(catalog_id, headers, cookies):
         print(f"Terjadi kesalahan tak terduga saat mengambil total_assets untuk katalog ID {catalog_id}: {e}")
         return None
 
-# Anda bisa menambahkan fungsi lain di sini jika diperlukan
+def get_catalog_files(catalog_id, headers, cookies):
+    """Mengambil daftar file dari katalog."""
+    url = f"{BASE_URL}/assets"
+    params = {
+        "catalog_id": catalog_id,
+        "page": 1,
+        "view_type": "list",
+        "browse": "true",
+        "size": 50
+    }
+    all_files = []
+    
+    try:
+        while True:
+            response = requests.get(url, headers=headers, cookies=cookies, params=params, verify=False)
+            response.raise_for_status()
+            data = response.json()
+            
+            current_page_assets = data.get("assets", [])
+            if not current_page_assets:
+                break
+                
+            # Filter hanya file yang memiliki file_info
+            for asset in current_page_assets:
+                if asset.get("asset_type") == "file" and asset.get("file_info"):
+                    for file_info in asset.get("file_info", []):
+                        if file_info.get("file_name"):
+                            all_files.append({
+                                "file_name": file_info.get("file_name"),
+                                "file_path": file_info.get("file_path", ""),
+                                "asset_id": asset.get("_id", ""),
+                                "asset_created_datetime": asset.get("asset_created_datetime", "")
+                            })
+            
+            # Cek apakah ada halaman berikutnya
+            if len(current_page_assets) < params["size"]:
+                break
+                
+            params["page"] += 1
+            
+        return all_files
+        
+    except requests.exceptions.RequestException as e:
+        print(f"Error saat mengambil file untuk katalog ID {catalog_id}: {e}")
+        return []
+    except json.JSONDecodeError:
+        print("Error: Respons API bukan JSON yang valid.")
+        return []
+    except Exception as e:
+        print(f"Terjadi kesalahan tak terduga saat mengambil file untuk katalog ID {catalog_id}: {e}")
+        return []
+
+## Made by Bryan Sean Abner (Anak Magang Nusantara TV - 2025)
