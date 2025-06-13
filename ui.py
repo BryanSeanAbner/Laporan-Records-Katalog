@@ -614,5 +614,5 @@ else:
                     st.error(f"Terjadi kesalahan saat memproses laporan: {str(e)}")
 
 # Footer
-st.markdown("----")
+st.markdown("---")
 st.markdown("Made by Bryan Sean Abner (Anak Magang Nusantara TV - 2025)")

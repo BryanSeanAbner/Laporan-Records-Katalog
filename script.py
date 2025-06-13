@@ -345,3 +345,5 @@ def get_catalog_files(catalog_id, headers, cookies):
     except Exception as e:
         print(f"Terjadi kesalahan tak terduga saat mengambil file untuk katalog ID {catalog_id}: {e}")
         return []
+
+## Made by Bryan Sean Abner (Anak Magang Nusantara TV - 2025)
