@@ -8,6 +8,7 @@ from urllib.parse import urlparse
 from script import (
     get_all_main_catalogs,
     get_catalog_total_assets,
+    get_catalog_files,
     get_metadata_value,
     NAMA_KUNCI_METADATA_TANGGAL,
     FORMAT_STRING_TANGGAL_METADATA,
@@ -36,6 +37,8 @@ if 'report_generated' not in st.session_state:
     st.session_state.report_generated = False
 if 'categorized_report_data' not in st.session_state:
     st.session_state.categorized_report_data = {}
+if 'catalog_files_data' not in st.session_state:
+    st.session_state.catalog_files_data = {}
 if 'all_dates_in_filtered_data' not in st.session_state:
     st.session_state.all_dates_in_filtered_data = []
 if 'monthly_dates' not in st.session_state:
@@ -382,10 +385,21 @@ if st.session_state.is_logged_in:
         st.header("⚙️ Konfigurasi")
         st.success("✅ Sudah Berhasil Login")
         if st.button("Logout", type="secondary"):
+            # Reset semua state yang terkait dengan login dan data
+            st.session_state.clear()  # Reset semua state
+            # Inisialisasi ulang state yang diperlukan
             st.session_state.is_logged_in = False
             st.session_state.session_id = None
-            st.session_state.base_url = None  # Set base_url ke None saat logout
-            st.rerun()  # Me-rerun aplikasi untuk menampilkan form login
+            st.session_state.base_url = None
+            st.session_state.report_generated = False
+            st.session_state.categorized_report_data = {}
+            st.session_state.catalog_files_data = {}
+            st.session_state.all_dates_in_filtered_data = []
+            st.session_state.monthly_dates = {}
+            st.session_state.total_catalogs_found = 0
+            st.session_state.start_date_input = datetime.date.today()
+            st.session_state.end_date_input = datetime.date.today()
+            st.rerun()
         
         st.markdown("---")
         
@@ -582,6 +596,13 @@ else:
                                 else:
                                     st.warning(f"Tidak dapat mengambil total aset untuk katalog '{catalog_name}' (ID: {catalog_id}). Menggunakan 0.")
 
+                                # Ambil daftar file dari katalog
+                                catalog_files = get_catalog_files(catalog_id, headers, cookies)
+                                if catalog_files:
+                                    if program_identifier not in st.session_state.catalog_files_data:
+                                        st.session_state.catalog_files_data[program_identifier] = {}
+                                    st.session_state.catalog_files_data[program_identifier][date_for_grouping] = catalog_files
+
                                 if program_identifier not in categorized_report_data:
                                     categorized_report_data[program_identifier] = {}
                                 categorized_report_data[program_identifier][date_for_grouping] = (
@@ -676,81 +697,108 @@ if st.session_state.report_generated:
 
     buffer = BytesIO()
 
-    with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
-        for year, month in filtered_sorted_months:
-            dates_for_this_month = monthly_dates[(year, month)]
+    if not filtered_sorted_months:
+        st.warning("Tidak ada data yang tersedia untuk rentang tanggal yang dipilih.")
+    else:
+        with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
+            for year, month in filtered_sorted_months:
+                dates_for_this_month = monthly_dates[(year, month)]
 
-            if not dates_for_this_month:
-                continue
+                if not dates_for_this_month:
+                    continue
 
-            month_name = datetime.date(year, month, 1).strftime('%B %Y')
-            date_columns_month = [
-                date.strftime('%d')
-                for date in dates_for_this_month
-            ]
+                month_name = datetime.date(year, month, 1).strftime('%B %Y')
+                date_columns_month = [
+                    date.strftime('%d')
+                    for date in dates_for_this_month
+                ]
 
-            df_data_month = []
-            row_num = 1
-            total_daily_counts_month = {date: 0 for date in dates_for_this_month}
+                # Inisialisasi dictionary untuk menyimpan total harian
+                total_daily_counts_month = {date: 0 for date in dates_for_this_month}
 
-            def sort_key(item):
-                for index, (standard_name, _) in enumerate(SPECIFIC_PROGRAM_CATEGORIES_MAPPING):
-                    if item == standard_name:
-                        return (0, index)
-                return (1, item)
+                # Buat DataFrame untuk total records
+                df_data_month = []
+                row_num = 1  # Inisialisasi nomor urut
 
-            sorted_program_identifiers = sorted(
-                categorized_report_data.keys(),
-                key=sort_key
-            )
+                def sort_key(item):
+                    for index, (standard_name, _) in enumerate(SPECIFIC_PROGRAM_CATEGORIES_MAPPING):
+                        if item == standard_name:
+                            return (0, index)
+                    return (1, item)
 
-            program_identifiers_in_this_month = [
-                program for program in sorted_program_identifiers
-                if any(
-                    date in dates_for_this_month
-                    for date in categorized_report_data.get(program, {}).keys()
+                sorted_program_identifiers = sorted(
+                    categorized_report_data.keys(),
+                    key=sort_key
                 )
-            ]
 
-            for program_name in program_identifiers_in_this_month:
-                row = {"NO": str(row_num), "NAMA PROGRAM": program_name}
-                row_num += 1
-                for date_col_obj in dates_for_this_month:
-                    count = categorized_report_data[program_name].get(date_col_obj, 0)
-                    row[date_col_obj.strftime('%d')] = count
-                    total_daily_counts_month[date_col_obj] += count
+                program_identifiers_in_this_month = [
+                    program for program in sorted_program_identifiers
+                    if any(
+                        date in dates_for_this_month
+                        for date in categorized_report_data.get(program, {}).keys()
+                    )
+                ]
 
-                df_data_month.append(row)
+                # Tambahkan data total records dengan penomoran yang berurutan
+                for program_name in program_identifiers_in_this_month:
+                    row = {"NO": str(row_num), "NAMA PROGRAM": program_name}
+                    row_num += 1  # Increment nomor urut
+                    for date_col_obj in dates_for_this_month:
+                        count = categorized_report_data[program_name].get(date_col_obj, 0)
+                        row[date_col_obj.strftime('%d')] = count
+                        total_daily_counts_month[date_col_obj] += count
+                    df_data_month.append(row)
 
-            total_daily_row_month = {"NO": "", "NAMA PROGRAM": "TOTAL DAILY"}
-            total_video_count_month = 0
-            for date in dates_for_this_month:
-                total_daily_row_month[date.strftime('%d')] = total_daily_counts_month[date]
-                total_video_count_month += total_daily_counts_month[date]
-            df_data_month.append(total_daily_row_month)
+                # Tambahkan baris total tanpa nomor urut
+                total_daily_row_month = {"NO": "", "NAMA PROGRAM": "TOTAL DAILY"}
+                total_video_count_month = 0
+                for date in dates_for_this_month:
+                    total_daily_row_month[date.strftime('%d')] = total_daily_counts_month[date]
+                    total_video_count_month += total_daily_counts_month[date]
+                df_data_month.append(total_daily_row_month)
 
-            total_video_row_month = {"NO": "", "NAMA PROGRAM": "TOTAL VIDEO"}
-            # Inisialisasi semua kolom tanggal dengan None
-            for date_col in date_columns_month:
-                total_video_row_month[date_col] = None
-            if date_columns_month:
-                # Letakkan total video di kolom tanggal awal
-                total_video_row_month[date_columns_month[0]] = total_video_count_month
-            df_data_month.append(total_video_row_month)
+                # Tambahkan baris total video tanpa nomor urut
+                total_video_row_month = {"NO": "", "NAMA PROGRAM": "TOTAL VIDEO"}
+                for date_col in date_columns_month:
+                    total_video_row_month[date_col] = None
+                if date_columns_month:
+                    total_video_row_month[date_columns_month[0]] = total_video_count_month
+                df_data_month.append(total_video_row_month)
 
-            columns_order_month = ["NO", "NAMA PROGRAM"] + date_columns_month
-            df_month = pd.DataFrame(df_data_month, columns=columns_order_month)
-            df_month.to_excel(writer, sheet_name=month_name, index=False)
+                # Buat DataFrame untuk daftar file
+                df_files_data = []
+                for program_name in program_identifiers_in_this_month:
+                    if program_name in st.session_state.catalog_files_data:
+                        for date_obj in dates_for_this_month:
+                            files = st.session_state.catalog_files_data[program_name].get(date_obj, [])
+                            if files:
+                                for file in files:
+                                    df_files_data.append({
+                                        "NAMA PROGRAM": program_name,
+                                        "TANGGAL": date_obj.strftime('%d %B %Y'),
+                                        "NAMA FILE": file['file_name'],
+                                        "TANGGAL DIBUAT": file['asset_created_datetime']
+                                    })
 
-    st.download_button(
-        label="📥 Unduh Laporan Excel",
-        data=buffer,
-        file_name=f"Laporan_Katalog_{st.session_state.start_date_input.strftime('%d-%m-%Y')}_sampai_{st.session_state.end_date_input.strftime('%d-%m-%Y')}.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        help="Unduh data laporan yang ditampilkan sebagai file Excel."
-    )
+                # Tulis ke Excel
+                columns_order_month = ["NO", "NAMA PROGRAM"] + date_columns_month
+                df_month = pd.DataFrame(df_data_month, columns=columns_order_month)
+                df_month.to_excel(writer, sheet_name=f"{month_name} - Records", index=False)
 
-    st.subheader("📋 Preview Data per Bulan")
+                # Tulis daftar file ke sheet terpisah
+                if df_files_data:
+                    df_files = pd.DataFrame(df_files_data)
+                    df_files.to_excel(writer, sheet_name=f"{month_name} - Files", index=False)
+
+        st.download_button(
+            label="📥 Unduh Laporan Excel",
+            data=buffer,
+            file_name=f"Laporan_Katalog_{st.session_state.start_date_input.strftime('%d-%m-%Y')}_sampai_{st.session_state.end_date_input.strftime('%d-%m-%Y')}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            help="Unduh data laporan yang ditampilkan sebagai file Excel."
+        )
+
+    st.subheader("📋 Preview Total Records per Katalog")
 
     if not filtered_sorted_months:
         st.info(f"Tidak ada data untuk tahun {selected_year} dalam rentang tanggal yang dipilih.")
@@ -800,14 +848,12 @@ if st.session_state.report_generated:
             df_display_data.append(total_daily_row)
 
             total_video_row = {"NO": "", "NAMA PROGRAM": "TOTAL VIDEO"}
-            # Inisialisasi semua kolom tanggal dengan None
             display_date_columns_str = [d.strftime('%d') for d in dates_for_this_month_in_preview]
             for date_col_str in display_date_columns_str:
                 total_video_row[date_col_str] = None
             total_video_count_month_display = sum(total_daily_counts.values())
 
             if dates_for_this_month_in_preview:
-                # Letakkan total video di kolom tanggal awal
                 total_video_row[dates_for_this_month_in_preview[0].strftime('%d')] = total_video_count_month_display
             df_display_data.append(total_video_row)
 
@@ -815,6 +861,20 @@ if st.session_state.report_generated:
             df_display = pd.DataFrame(df_display_data, columns=display_columns_order)
             st.dataframe(df_display, hide_index=True)
 
+            # Tampilkan daftar file setelah tabel total records
+            st.subheader("📁 Preview Nama Files Pada Setiap Nama Program")
+            for program_name in program_identifiers_in_this_month_display:
+                if program_name in st.session_state.catalog_files_data:
+                    st.markdown(f"### {program_name}")
+                    for date_obj in dates_for_this_month_in_preview:
+                        files = st.session_state.catalog_files_data[program_name].get(date_obj, [])
+                        if files:
+                            st.markdown(f"**Tanggal: {date_obj.strftime('%d %B %Y')}**")
+                            file_num = 1  # Inisialisasi nomor urut untuk setiap daftar file pada tanggal ini
+                            for file in files:
+                                st.markdown(f"{file_num}- {file['file_name']}")
+                                file_num += 1  # Increment nomor urut file
+                            st.markdown("---")
+
 # Footer
-st.markdown("---")
 st.markdown("Made by Bryan Sean Abner (Anak Magang Nusantara TV - 2025)")
