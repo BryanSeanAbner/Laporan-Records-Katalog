@@ -1,6 +1,6 @@
 # Laporan Records Katalog Nusantara TV
 
-Aplikasi web untuk mengelola dan melaporkan records katalog dari Nusantara TV.
+Aplikasi web ini merupakan project internship yang dilakukan di Nusantara TV. Web ini bertujuan untuk mengelola dan melaporkan records katalog dari Nusantara TV.
 
 ## Fitur
 
@@ -16,28 +16,6 @@ Aplikasi web untuk mengelola dan melaporkan records katalog dari Nusantara TV.
 - Python 3.8 atau lebih baru
 - Koneksi ke jaringan lokal Nusantara TV
 - Akses ke API Nusantara TV
-
-## Instalasi
-
-1. Clone repository ini:
-```bash
-git clone https://github.com/username/laporan-katalog.git
-cd laporan-katalog
-```
-
-2. Buat virtual environment dan aktifkan:
-```bash
-python -m venv venv
-# Windows
-venv\Scripts\activate
-# Linux/Mac
-source venv/bin/activate
-```
-
-3. Install dependensi:
-```bash
-pip install -r requirements.txt
-```
 
 ## Penggunaan
 
@@ -62,14 +40,5 @@ laporan-katalog/
 └── README.md         # Dokumentasi proyek
 ```
 
-## Kontribusi
-
-1. Fork repository
-2. Buat branch fitur (`git checkout -b fitur-baru`)
-3. Commit perubahan (`git commit -m 'Menambahkan fitur baru'`)
-4. Push ke branch (`git push origin fitur-baru`)
-5. Buat Pull Request
-
 ## Made by
-
 Bryan Sean Abner - Anak Magang Nusantara TV 2025
